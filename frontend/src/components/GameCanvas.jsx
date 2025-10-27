@@ -1,13 +1,15 @@
 // src/components/GameCanvas.jsx
 import { useState, useEffect } from 'react';
+import { useGame } from '../contexts/GameContext';
 import GameMap from './GameMap';
 import HUD from './HUD';
 import GameEntities from './GameEntities';
+import Timer from './Timer';
 import SuccessModal from './SuccessModal';
 import FailModal from './FailModal';
 
 export default function GameCanvas() {
-  const [gameTime, setGameTime] = useState(180);
+  const { gameTime, currentGame, playerSession } = useGame();
   const [health, setHealth] = useState(85);
   const [ammo, setAmmo] = useState(30);
   const [totalLoot, setTotalLoot] = useState(2.35);
@@ -15,38 +17,25 @@ export default function GameCanvas() {
     { id: 1, message: 'PlayerX eliminated PlayerY', type: 'kill', timestamp: Date.now() - 3000 },
     { id: 2, message: 'You collected +0.5 SOL', type: 'loot', timestamp: Date.now() - 2000 },
   ]);
-  
+
   // Modal states
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showFailModal, setShowFailModal] = useState(false);
   const [gameResult, setGameResult] = useState(null);
 
-  // Game timer
+  // Monitor game status for end conditions
   useEffect(() => {
-    const timer = setInterval(() => {
-      setGameTime(prev => {
-        if (prev <= 0) {
-          clearInterval(timer);
-          handleGameEnd('success');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  // Simulate game events
-  useEffect(() => {
-    // Simulate player death after 30 seconds for testing
-    const deathTimer = setTimeout(() => {
-      // Uncomment to test fail modal
-      // handleGameEnd('fail', 'Nemesis', 1.5);
-    }, 30000);
-
-    return () => clearTimeout(deathTimer);
-  }, []);
+    if (currentGame?.status === 'completed') {
+      if (playerSession?.status === 'extracted') {
+        handleGameEnd('success');
+      } else if (playerSession?.status === 'eliminated') {
+        handleGameEnd('fail', 'Enemy Player', totalLoot);
+      } else {
+        // Game ended without extraction - treat as fail
+        handleGameEnd('fail', 'Time Expired', totalLoot);
+      }
+    }
+  }, [currentGame?.status, playerSession?.status]);
 
   const handleGameEnd = (result, killedBy = null, lootAmount = null) => {
     if (result === 'success') {
@@ -91,7 +80,8 @@ export default function GameCanvas() {
 
           <GameMap />
           <GameEntities />
-          <HUD 
+          <Timer gameTime={gameTime} />
+          <HUD
             gameTime={gameTime}
             health={health}
             ammo={ammo}

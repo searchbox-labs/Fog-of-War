@@ -135,19 +135,77 @@ class GameEvent(models.Model):
     def __str__(self):
         return f"{self.get_event_type_display()} - {self.game_session.name}"
 
+class NPC(models.Model):
+    NPC_TYPES = [
+        ('guard', 'Guard'),
+        ('patrol', 'Patrol'),
+        ('sentinel', 'Sentinel'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    game_session = models.ForeignKey(GameSession, on_delete=models.CASCADE, related_name='npcs')
+    npc_type = models.CharField(max_length=20, choices=NPC_TYPES)
+    name = models.CharField(max_length=50)
+
+    # Position and movement
+    position_x = models.FloatField(default=0)
+    position_y = models.FloatField(default=0)
+    patrol_path = models.JSONField(default=list)  # List of [x,y] coordinates for patrol
+    patrol_index = models.IntegerField(default=0)  # Current position in patrol path
+    speed = models.FloatField(default=1.0)  # Movement speed
+
+    # Combat stats
+    health = models.IntegerField(default=100)
+    damage = models.IntegerField(default=15)
+    detection_range = models.FloatField(default=10.0)  # Distance to detect players
+    attack_range = models.FloatField(default=2.0)  # Distance to attack players
+
+    # State
+    is_active = models.BooleanField(default=True)
+    last_move_time = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.get_npc_type_display()})"
+
+class Hazard(models.Model):
+    HAZARD_TYPES = [
+        ('spike_trap', 'Spike Trap'),
+        ('poison_gas', 'Poison Gas'),
+        ('laser_grid', 'Laser Grid'),
+        ('explosive_barrel', 'Explosive Barrel'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    game_session = models.ForeignKey(GameSession, on_delete=models.CASCADE, related_name='hazards')
+    hazard_type = models.CharField(max_length=20, choices=HAZARD_TYPES)
+
+    # Position and area
+    position_x = models.FloatField(default=0)
+    position_y = models.FloatField(default=0)
+    radius = models.FloatField(default=3.0)  # Effect radius
+    damage = models.IntegerField(default=25)  # Damage per tick/second
+
+    # State
+    is_active = models.BooleanField(default=True)
+    activation_time = models.DateTimeField(null=True, blank=True)
+    duration = models.IntegerField(default=10)  # Duration in seconds
+
+    def __str__(self):
+        return f"{self.get_hazard_type_display()} at ({self.position_x}, {self.position_y})"
+
 class Transaction(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('confirmed', 'Confirmed'),
         ('failed', 'Failed'),
     ]
-    
+
     TYPE_CHOICES = [
         ('entry_fee', 'Entry Fee'),
         ('payout', 'Payout'),
         ('transfer', 'Loot Transfer'),
     ]
-    
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     game_session = models.ForeignKey(GameSession, on_delete=models.CASCADE, null=True, blank=True)
@@ -157,6 +215,6 @@ class Transaction(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     confirmed_at = models.DateTimeField(null=True, blank=True)
-    
+
     def __str__(self):
         return f"{self.transaction_type} - {self.sol_amount} SOL"

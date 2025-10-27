@@ -100,18 +100,26 @@ class GameEventViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset
 
 class WalletConnectView(APIView):
-    permission_classes = [IsAuthenticated]
-    
+    permission_classes = []  # Allow unauthenticated access for wallet connection
+
     def post(self, request):
         wallet_address = request.data.get('wallet_address')
         if not wallet_address:
             return Response({'error': 'Wallet address required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Verify wallet ownership (simplified - in production, use proper wallet verification)
-        request.user.wallet_address = wallet_address
-        request.user.save()
-        
-        return Response({'status': 'Wallet connected', 'wallet_address': wallet_address})
+
+        # For now, we'll create or get a user based on wallet address
+        # In production, you'd want proper authentication flow
+        from users.models import User
+        user, created = User.objects.get_or_create(
+            wallet_address=wallet_address,
+            defaults={'username': f'user_{wallet_address[:8]}'}
+        )
+
+        return Response({
+            'status': 'Wallet connected',
+            'wallet_address': wallet_address,
+            'user_created': created
+        })
 
 class EncryptLootView(APIView):
     permission_classes = [IsAuthenticated]
@@ -294,17 +302,32 @@ class ExtractLootView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def _check_extraction_zone(self, x, y):
-        # Simplified extraction zone check
-        # In production, implement proper zone verification
+        # Use Arcium to verify extraction zone access
+        from .services.arcium_service import ArciumService
+        arcium_service = ArciumService()
+
+        # Define encrypted extraction zones
         extraction_zones = [
-            {'x': 90, 'y': 90, 'radius': 10},  # Top-right corner
-            {'x': 10, 'y': 90, 'radius': 10},  # Top-left corner
+            {'encrypted_x': 'encrypted_90', 'encrypted_y': 'encrypted_90', 'radius': 10},  # Top-right corner
+            {'encrypted_x': 'encrypted_10', 'encrypted_y': 'encrypted_90', 'radius': 10},  # Top-left corner
         ]
-        
+
         for zone in extraction_zones:
-            distance = ((x - zone['x'])**2 + (y - zone['y'])**2)**0.5
-            if distance <= zone['radius']:
-                return True
+            try:
+                # Verify position match with encrypted zone coordinates
+                x_match = arcium_service.verify_position_match(
+                    zone['encrypted_x'], x, zone['radius']
+                )
+                y_match = arcium_service.verify_position_match(
+                    zone['encrypted_y'], y, zone['radius']
+                )
+
+                if x_match and y_match:
+                    return True
+            except Exception as e:
+                print(f"Arcium extraction zone verification failed: {e}")
+                continue
+
         return False
 
 class CollectLootView(APIView):
@@ -375,9 +398,23 @@ class CollectLootView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def _is_near_position(self, loot_item, x, y, threshold=2.0):
-        # Simplified position check
-        # In production, use Arcium to decrypt and verify exact position match
-        return True  # Placeholder
+        # Use Arcium to verify position match without revealing exact coordinates
+        from .services.arcium_service import ArciumService
+        arcium_service = ArciumService()
+
+        # Decrypt the loot position and verify player is within range
+        try:
+            decrypted_x = arcium_service.decrypt_loot_balance(loot_item.encrypted_position_x)
+            decrypted_y = arcium_service.decrypt_loot_balance(loot_item.encrypted_position_y)
+
+            loot_x = float(decrypted_x.get('amount', '0'))
+            loot_y = float(decrypted_y.get('amount', '0'))
+
+            distance = ((loot_x - x)**2 + (loot_y - y)**2)**0.5
+            return distance <= threshold
+        except Exception as e:
+            print(f"Arcium position verification failed: {e}")
+            return False  # Fail securely if verification fails
     
 
 # Add to core/views.py
@@ -399,22 +436,37 @@ class CreateGameView(APIView):
 
 class PlayerMovementView(APIView):
     permission_classes = [IsAuthenticated]
-    
+
     def post(self, request):
         player_session_id = request.data.get('player_session_id')
         new_x = request.data.get('position_x')
         new_y = request.data.get('position_y')
-        
+
         try:
             player = PlayerSession.objects.get(
-                id=player_session_id, 
+                id=player_session_id,
                 user=request.user,
                 status='alive'
             )
             player.position_x = new_x
             player.position_y = new_y
             player.save()
-            
+
+            # Broadcast position update via WebSocket
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f'game_{player.game_session.id}',
+                {
+                    'type': 'player_position_update',
+                    'player_id': str(player.id),
+                    'position_x': new_x,
+                    'position_y': new_y,
+                }
+            )
+
             return Response({'status': 'Position updated'})
         except PlayerSession.DoesNotExist:
             return Response({'error': 'Player not found'}, status=404)

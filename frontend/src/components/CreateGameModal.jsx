@@ -1,116 +1,188 @@
-// src/components/CreateGameModal.jsx
+import { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+
 export default function CreateGameModal({ isOpen, onClose, onCreateGame }) {
-    if (!isOpen) return null;
-  
-    const handleSubmit = (e) => {
-      e.preventDefault();
-      const formData = new FormData(e.target);
-      const gameData = {
-        map: formData.get('map'),
-        maxPlayers: formData.get('maxPlayers'),
-        entryFee: formData.get('entryFee')
-      };
-      onCreateGame(gameData);
-    };
-  
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-        <div className="relative w-full max-w-md rounded-xl border border-borderDark bg-bgCard shadow-2xl shadow-primary/10">
-          <div className="flex flex-col space-y-6 p-8">
-            <div className="space-y-2 text-center">
-              <h1 className="text-2xl font-bold text-textPrimary">Create New Game Session</h1>
-              <p className="text-textSecondary">Configure the settings for your new game.</p>
-            </div>
-            
-            <form className="flex flex-col space-y-6" onSubmit={handleSubmit}>
-              <div className="space-y-4">
-                {/* Map Selection */}
-                <div>
-                  <label className="text-sm font-medium uppercase tracking-wider text-textSecondary" htmlFor="map-selection">
-                    Map Selection
-                  </label>
-                  <div className="relative mt-2">
-                    <select 
-                      className="block w-full appearance-none rounded-md border border-borderDark bg-bgDark py-2 pl-3 pr-10 text-textPrimary placeholder-textSecondary/50 focus:border-primary focus:outline-none focus:ring-primary sm:text-sm" 
-                      id="map-selection"
-                      name="map"
-                      defaultValue="Dungeon Alpha"
-                    >
-                      <option>Dungeon Alpha</option>
-                      <option>Sector 7 Ruins</option>
-                      <option>Station Omega</option>
-                      <option>The Forgotten City</option>
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-textSecondary">
-                      <span className="material-icons">expand_more</span>
-                    </div>
-                  </div>
-                </div>
-  
-                {/* Max Players */}
-                <div>
-                  <label className="text-sm font-medium uppercase tracking-wider text-textSecondary" htmlFor="max-players">
-                    Max Players
-                  </label>
-                  <input 
-                    className="mt-2 block w-full rounded-md border border-borderDark bg-bgDark px-3 py-2 text-textPrimary placeholder-textSecondary/50 focus:border-primary focus:outline-none focus:ring-primary sm:text-sm" 
-                    id="max-players" 
-                    name="maxPlayers"
-                    max="100" 
-                    min="2" 
-                    placeholder="e.g., 50" 
-                    type="number" 
-                    defaultValue="50"
-                  />
-                </div>
-  
-                {/* Entry Fee */}
-                <div>
-                  <label className="text-sm font-medium uppercase tracking-wider text-textSecondary" htmlFor="entry-fee">
-                    Entry Fee (SOL)
-                  </label>
-                  <div className="relative mt-2">
-                    <input 
-                      className="block w-full rounded-md border border-borderDark bg-bgDark px-3 py-2 pl-8 font-mono text-accentYellow placeholder-textSecondary/50 focus:border-primary focus:outline-none focus:ring-primary sm:text-sm" 
-                      id="entry-fee" 
-                      name="entryFee"
-                      placeholder="1" 
-                      step="0.1" 
-                      type="number" 
-                      defaultValue="1"
-                    />
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                      <svg className="h-4 w-4 text-accentYellow" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-9.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"></path>
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="mt-2 flex items-start space-x-2 text-yellow-500/80">
-                    <span className="material-icons text-base leading-tight">warning</span>
-                    <p className="text-xs">Modifying the entry fee may impact game balance and player interest.</p>
-                  </div>
-                </div>
-              </div>
-  
-              {/* Buttons */}
-              <div className="flex flex-col space-y-3 pt-2">
-                <button 
-                  className="flex h-11 items-center justify-center rounded-lg bg-primary px-6 text-base font-bold text-bgDark transition-colors hover:bg-primary/80 disabled:cursor-not-allowed disabled:opacity-50" 
-                  type="submit"
-                >
-                  Create Game
-                </button>
-                <button 
-                  className="flex h-11 items-center justify-center rounded-lg bg-transparent px-6 text-base font-medium text-textSecondary transition-colors hover:bg-white/5" 
-                  type="button"
-                  onClick={onClose}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
+  const [formData, setFormData] = useState({
+    name: '',
+    map_type: 'dungeon_alpha',
+    max_players: 50,
+    entry_fee: 1.0,
+    duration_minutes: 5,
+  });
+  const [loading, setLoading] = useState(false);
+
+  const { connectWallet } = useAuth();
+
+  const mapOptions = [
+    { value: 'dungeon_alpha', label: 'Dungeon Alpha' },
+    { value: 'sector_7_ruins', label: 'Sector 7 Ruins' },
+    { value: 'station_omega', label: 'Station Omega' },
+    { value: 'jungle_temple', label: 'Jungle Temple' },
+  ];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      // Ensure wallet is connected - use AuthContext user state
+      if (!user?.wallet_address) {
+        alert('Please connect your wallet first using the Connect Wallet button');
+        setLoading(false);
+        return;
+      }
+
+      await onCreateGame(formData);
+      setFormData({
+        name: '',
+        map_type: 'dungeon_alpha',
+        max_players: 50,
+        entry_fee: 1.0,
+        duration_minutes: 5,
+      });
+    } catch (error) {
+      console.error('Error creating game:', error);
+      alert('Failed to create game');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'max_players' || name === 'duration_minutes'
+        ? parseInt(value)
+        : name === 'entry_fee'
+        ? parseFloat(value)
+        : value
+    }));
+  };
+
+  if (!isOpen) return null;
+
+  const prizePool = formData.entry_fee * formData.max_players;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-bgDark border border-gray-700 rounded-lg p-6 w-full max-w-md">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-white">Create New Game</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white text-2xl"
+          >
+            ×
+          </button>
         </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Game Name
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              placeholder="Enter game name"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-accentGreen"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Map Type
+            </label>
+            <select
+              name="map_type"
+              value={formData.map_type}
+              onChange={handleChange}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-accentGreen"
+            >
+              {mapOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Max Players
+            </label>
+            <input
+              type="number"
+              name="max_players"
+              value={formData.max_players}
+              onChange={handleChange}
+              min="2"
+              max="100"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-accentGreen"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Entry Fee (SOL)
+            </label>
+            <input
+              type="number"
+              name="entry_fee"
+              value={formData.entry_fee}
+              onChange={handleChange}
+              min="0.1"
+              step="0.1"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-accentGreen"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Duration (minutes)
+            </label>
+            <input
+              type="number"
+              name="duration_minutes"
+              value={formData.duration_minutes}
+              onChange={handleChange}
+              min="1"
+              max="60"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-accentGreen"
+              required
+            />
+          </div>
+
+          <div className="bg-gray-800 p-3 rounded-md">
+            <div className="text-sm text-gray-300">
+              Prize Pool: <span className="text-accentGreen font-bold">{prizePool.toFixed(2)} SOL</span>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-accentGreen text-black font-bold rounded-md hover:bg-accentGreen/80 transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Creating...' : 'Create Game'}
+            </button>
+          </div>
+        </form>
       </div>
-    );
-  }
+    </div>
+  );
+}
