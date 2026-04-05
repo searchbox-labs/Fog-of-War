@@ -1,0 +1,22 @@
+## Blockchain Deployment
+
+```
+npx hardhat ignition deploy ignition/modules/FogSession.ts --network arbitrumSepolia
+
+✔ Confirm deploy to network arbitrumSepolia (421614)? … yes
+
+
+Hardhat Ignition 🚀
+
+Deploying [ FogSessionModule ]
+
+Batch #1
+  Executed FogSessionModule#FogSession
+
+[ FogSessionModule ] successfully deployed 🚀
+
+Deployed Addresses
+
+FogSessionModule#FogSession - 0xCF9D7db4d8b3039082c773229D690A9DBe91EF78
+
+```

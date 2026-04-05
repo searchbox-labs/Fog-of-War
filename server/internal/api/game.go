@@ -42,7 +42,6 @@ func (s *AuthServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Login
 }
 
 func (s *GameServer) Connect(req *pb.ConnectRequest, stream pb.GameService_ConnectServer) error {
-	// 1. Validate JWT from metadata
 	playerID, err := getPlayerIDFromMetadata(stream.Context())
 	if err != nil {
 		return err
@@ -53,17 +52,33 @@ func (s *GameServer) Connect(req *pb.ConnectRequest, stream pb.GameService_Conne
 		return status.Errorf(codes.InvalidArgument, "Invalid game ID: %v", err)
 	}
 
-	// 2. Get or create game engine
+	// Get or create engine + on-chain session
 	e, ok := s.Manager.GetEngine(gameID)
 	if !ok {
-		e = s.Manager.CreateEngine(gameID)
-		e.Start(stream.Context())
+		e, err = s.Manager.CreateEngine(stream.Context(), gameID, 50, 300) // 50 players, 5 min
+		if err != nil {
+			return status.Errorf(codes.Internal, "Failed to create game session: %v", err)
+		}
 	}
 
-	// 3. Add player to engine (if not already there)
+	// Join on-chain — player's wallet pays entry fee
+	txHash, err := s.Manager.JoinSession(stream.Context(), gameID)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Failed to join on-chain session: %v", err)
+	}
+
+	fmt.Printf("Player %s joined on-chain, tx: %s\n", playerID, txHash)
+
+	// Start engine if not already running
+	if e.Ticker == nil {
+		if err := s.Manager.StartEngine(stream.Context(), gameID); err != nil {
+			return status.Errorf(codes.Internal, "Failed to start engine: %v", err)
+		}
+	}
+
 	e.AddPlayer(playerID, "Player_"+playerID.String()[:4], 50.0, 50.0)
 
-	// 4. Stream updates from engine to client
+	// Stream state updates
 	for {
 		select {
 		case <-stream.Context().Done():

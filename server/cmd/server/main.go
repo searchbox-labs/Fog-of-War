@@ -9,6 +9,7 @@ import (
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/koded/fog-of-war/server/internal/api"
 	"github.com/koded/fog-of-war/server/internal/engine"
+	"github.com/koded/fog-of-war/server/internal/services"
 	pb "github.com/koded/fog-of-war/server/proto"
 	"github.com/rs/cors"
 	"google.golang.org/grpc"
@@ -16,7 +17,12 @@ import (
 
 func main() {
 	// 1. Initialize Game Manager
-	manager := engine.NewGameManager()
+	arbitrum, err := services.NewArbitrumService()
+	if err != nil {
+		log.Fatalf("Failed to init Arbitrum service: %v", err)
+	}
+
+	manager := engine.NewGameManager(arbitrum)
 
 	// 2. Setup gRPC Server
 	grpcServer := grpc.NewServer()

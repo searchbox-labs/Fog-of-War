@@ -48,7 +48,7 @@ func (s *SolanaService) VerifyTransaction(ctx context.Context, txHash string, ex
 		ctx,
 		sig,
 		&rpc.GetTransactionOpts{
-			Encoding: solana.TransactionEncodingBase64,
+			Encoding: solana.EncodingBase64,
 		},
 	)
 	if err != nil {
