@@ -88,10 +88,6 @@ export default class PreloadScene extends Phaser.Scene {
   create() {
     this._createAnimations();
     this._generateFogRevealTexture();
-    console.log('[PreloadScene] done — textures loaded:', this.textures.list ? Object.keys(this.textures.list).length : '?');
-    console.log('[PreloadScene] knight_m_idle_f0 exists:', this.textures.exists('knight_m_idle_f0'));
-    console.log('[PreloadScene] fog_reveal exists:', this.textures.exists('fog_reveal'));
-    console.log('[PreloadScene] anim 0_idle exists:', this.anims.exists('0_idle'));
     this.scene.start('GameScene');
   }
 

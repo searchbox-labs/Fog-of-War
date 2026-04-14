@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../store';
 import { sendMove, sendAttack, collectLoot } from '../socket';
 import { createPhaserGame } from '../game/index.js';
+import { isWalkable } from '../game/tileMap.js';
 import HUD from './HUD';
 import MobileControls from './MobileControls';
 import './Game.css';
@@ -181,6 +182,8 @@ export default function Game() {
         }
         nx = Math.max(0, Math.min(GRID_W - 1, nx));
         ny = Math.max(0, Math.min(GRID_H - 1, ny));
+        // Don't let bots walk into walls either
+        if (!isWalkable(nx, ny)) { nx = bot.x; ny = bot.y; }
 
         const dist = Math.abs(nx - myPos.x) + Math.abs(ny - myPos.y);
         let botHp = bot.hp;
@@ -275,6 +278,9 @@ export default function Game() {
 
       const nx = Math.max(0, Math.min(GRID_W - 1, myPos.x + dx));
       const ny = Math.max(0, Math.min(GRID_H - 1, myPos.y + dy));
+
+      // Block movement into walls / void tiles
+      if (!isWalkable(nx, ny)) return;
 
       trailRef.current.push({ x: myPos.x, y: myPos.y, ts: Date.now() });
 

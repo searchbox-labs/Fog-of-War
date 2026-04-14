@@ -4,6 +4,7 @@ import FogSystem   from '../systems/FogSystem.js';
 import ParticleSystem from '../systems/ParticleSystem.js';
 import LightSystem  from '../systems/LightSystem.js';
 import { CHAR_NAMES } from './PreloadScene.js';
+import { setTileMap } from '../tileMap.js';
 import {
   TILE, GRID_W, GRID_H, WORLD_W, WORLD_H,
   FOG_RADIUS, SPAWN_X, SPAWN_Y,
@@ -27,8 +28,6 @@ export default class GameScene extends Phaser.Scene {
   // ── Phaser lifecycle ──────────────────────────────────────────────────
 
   create() {
-    console.log('[GameScene] create() start');
-
     // Systems
     this.fog        = new FogSystem(this);
     this.particles  = new ParticleSystem(this);
@@ -37,7 +36,7 @@ export default class GameScene extends Phaser.Scene {
     // State tracking
     this._myId           = null;
     this._myTilePos      = { x: SPAWN_X, y: SPAWN_Y };
-    this._myDisplayPos   = { x: SPAWN_X * TILE, y: SPAWN_Y * TILE };
+    this._myDisplayPos   = { x: (SPAWN_X + 0.5) * TILE, y: (SPAWN_Y + 0.5) * TILE };
     this._mySprite       = null;
     this._myHpBar        = null;
     this._prevMyHp       = 100;
@@ -51,69 +50,82 @@ export default class GameScene extends Phaser.Scene {
 
     // World bounds
     this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
-    this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
+    // No camera bounds — allows centering player on screen even at map edges
+    // this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
 
     // Procedural dungeon
-    console.log('[GameScene] building dungeon...');
     this._buildDungeon();
-    console.log('[GameScene] dungeon built');
 
     // Player sprite
     const state = useGameStore.getState();
-    console.log('[GameScene] store state:', {
-      myId: state.myId,
-      myPos: state.myPos,
-      selectedCharacter: state.selectedCharacter,
-      localMode: state.localMode,
-    });
     this._myId = state.myId;
-    this._createMySprite(state);
-    console.log('[GameScene] _mySprite:', this._mySprite, 'at', this._mySprite?.x, this._mySprite?.y);
-    console.log('[GameScene] fog_reveal texture exists:', this.textures.exists('fog_reveal'));
-    console.log('[GameScene] knight_m_idle_f0 texture exists:', this.textures.exists('knight_m_idle_f0'));
-    console.log('[GameScene] anim 0_idle exists:', this.anims.exists('0_idle'));
+    
+    // Use the store's current position if available, else SPAWN_X/Y.
+    const startX = state.myPos?.x ?? SPAWN_X;
+    const startY = state.myPos?.y ?? SPAWN_Y;
+    this._myTilePos = { x: startX, y: startY };
+    this._myDisplayPos = {
+      x: (startX + 0.5) * TILE,
+      y: (startY + 0.5) * TILE,
+    };
 
-    // Camera — snap to player immediately; smooth follow is done manually in update()
-    const zoom = this._getZoom();
-    this.cameras.main.setZoom(zoom);
-    console.log('[GameScene] camera size:', this.cameras.main.width, 'x', this.cameras.main.height, 'zoom:', zoom);
+    this._createMySprite(state);
+
+    this.cameras.main.setZoom(this._getZoom());
+    
+    // Explicitly center the camera on the player's initial position.
+    this.cameras.main.centerOn(this._myDisplayPos.x, this._myDisplayPos.y);
+    
+    // Start following the player sprite with smooth lerp (0.1, 0.1).
     if (this._mySprite) {
-      const cam = this.cameras.main;
-      // Manually compute scroll accounting for zoom so the player is truly centred
-      cam.setScroll(
-        this._mySprite.x - cam.width  / (2 * zoom),
-        this._mySprite.y - cam.height / (2 * zoom),
-      );
-      console.log('[GameScene] camera snapped → scroll:', Math.round(cam.scrollX), Math.round(cam.scrollY));
-    } else {
-      console.warn('[GameScene] _mySprite is null — cannot snap camera');
+      this.cameras.main.startFollow(this._mySprite, true, 0.1, 0.1);
     }
+    
+    this._cameraSnapped = false;
 
     // Map border (drawn over fog so always visible)
     this._drawBorder();
 
-    // Subscribe to store changes
+    // Subscribe to store changes.
+    // Zustand v5 dropped the subscribe(selector, callback) overload — the only
+    // supported signature is subscribe((state, prevState) => void).
+    // One consolidated listener with manual per-field change detection replaces
+    // the old selector-per-field approach.
     this._unsubs = [
-      useGameStore.subscribe(s => s.myId, (id) => {
-        this._myId = id;
-      }),
-      useGameStore.subscribe(s => s.myPos, (pos) => {
-        if (!pos) return;
-        this._myTilePos = { x: pos.x, y: pos.y };
-        this._addFootprint(pos.x, pos.y);
-      }),
-      useGameStore.subscribe(s => s.myHp, (hp) => {
-        const prev = this._prevMyHp;
-        this._prevMyHp = hp;
-        if (hp < prev && this._mySprite) {
-          this.particles.flashSprite(this._mySprite);
-          this.particles.combatHit(this._myTilePos.x, this._myTilePos.y);
+      useGameStore.subscribe((state, prev) => {
+        if (state.myId !== prev.myId) {
+          this._myId = state.myId;
         }
+
+        if (state.myPos !== prev.myPos && state.myPos) {
+          const isFirstPos = !prev.myPos;
+          this._myTilePos = { x: state.myPos.x, y: state.myPos.y };
+          this._addFootprint(state.myPos.x, state.myPos.y);
+
+          // On first valid position, snap display pos immediately so the camera 
+          // doesn't lerp from the map center (SPAWN_X/Y).
+          if (isFirstPos) {
+            this._myDisplayPos = {
+              x: (state.myPos.x + 0.5) * TILE,
+              y: (state.myPos.y + 0.5) * TILE,
+            };
+            this._cameraSnapped = false; // Re-snap on next update frame
+          }
+        }
+
+        if (state.myHp !== prev.myHp) {
+          this._prevMyHp = state.myHp;
+          if (state.myHp < prev.myHp && this._mySprite) {
+            this.particles.flashSprite(this._mySprite);
+            this.particles.combatHit(this._myTilePos.x, this._myTilePos.y);
+          }
+        }
+
+        if (state.players   !== prev.players)   this._syncPlayers(state.players);
+        if (state.npcs      !== prev.npcs)       this._syncNPCs(state.npcs);
+        if (state.treasures !== prev.treasures)  this._syncTreasures(state.treasures);
+        if (state.footprints !== prev.footprints) this._syncFootprints(state.footprints);
       }),
-      useGameStore.subscribe(s => s.players, (players) => this._syncPlayers(players)),
-      useGameStore.subscribe(s => s.npcs,    (npcs)    => this._syncNPCs(npcs)),
-      useGameStore.subscribe(s => s.treasures,(trs)    => this._syncTreasures(trs)),
-      useGameStore.subscribe(s => s.footprints, (fps)  => this._syncFootprints(fps)),
     ];
 
     // Listen for combat flash events from React
@@ -132,17 +144,17 @@ export default class GameScene extends Phaser.Scene {
     this._syncPlayers(s.players);
     this._syncNPCs(s.npcs);
     this._syncTreasures(s.treasures);
+
+    // Handle window resize
+    this.scale.on('resize', (gameSize) => {
+      const { width, height } = gameSize;
+      this.cameras.main.setViewport(0, 0, width, height);
+      this.cameras.main.setZoom(this._getZoom());
+      this._snapCameraToPlayer();
+    });
   }
 
   update(time, delta) {
-    // Log once per second to show live state
-    if (!this._lastLogTime || time - this._lastLogTime > 1000) {
-      this._lastLogTime = time;
-      console.log('[GameScene] update tick — sprite:', this._mySprite ? `pos(${Math.round(this._mySprite.x)},${Math.round(this._mySprite.y)}) visible:${this._mySprite.visible} alpha:${this._mySprite.alpha} depth:${this._mySprite.depth}` : 'NULL');
-      console.log('[GameScene]   camera scroll:', Math.round(this.cameras.main.scrollX), Math.round(this.cameras.main.scrollY), 'zoom:', this.cameras.main.zoom);
-      console.log('[GameScene]   _myTilePos:', this._myTilePos, '_myDisplayPos:', { x: Math.round(this._myDisplayPos.x), y: Math.round(this._myDisplayPos.y) });
-    }
-
     const state = useGameStore.getState();
 
     // ── Smooth-move my sprite ────────────────────────────────────────
@@ -203,16 +215,13 @@ export default class GameScene extends Phaser.Scene {
       }
     });
 
-    // ── Camera smooth-follow (manual — more reliable than startFollow with RESIZE scale) ──
+    // ── Camera smooth-follow ─────────────────────────────────────────────
     {
       const cam = this.cameras.main;
-      const z   = cam.zoom;
-      const tx  = this._myDisplayPos.x - cam.width  / (2 * z);
-      const ty  = this._myDisplayPos.y - cam.height / (2 * z);
-      cam.setScroll(
-        Phaser.Math.Linear(cam.scrollX, tx, 0.1),
-        Phaser.Math.Linear(cam.scrollY, ty, 0.1),
-      );
+      if (!this._cameraSnapped && cam.width > 0) {
+        cam.centerOn(this._myDisplayPos.x, this._myDisplayPos.y);
+        this._cameraSnapped = true;
+      }
     }
 
     // ── Fog update ────────────────────────────────────────────────────
@@ -309,6 +318,9 @@ export default class GameScene extends Phaser.Scene {
 
     // Render tiles and scatter torches in one pass
     this._renderTiles();
+
+    // Publish the tile map so Game.jsx can do client-side collision checks
+    setTileMap(this._tileMap);
   }
 
   _renderTiles() {
@@ -388,28 +400,17 @@ export default class GameScene extends Phaser.Scene {
   _createMySprite(state) {
     const charIdx = state.selectedCharacter ?? 0;
     const charName = CHAR_NAMES[charIdx];
-    const tx = (state.myPos?.x ?? SPAWN_X);
-    const ty = (state.myPos?.y ?? SPAWN_Y);
-    const wx = (tx + 0.5) * TILE;
-    const wy = (ty + 0.5) * TILE;
+    const wx = this._myDisplayPos.x;
+    const wy = this._myDisplayPos.y;
 
     const textureKey = `${charName}_idle_f0`;
-    console.log('[GameScene] _createMySprite', { charIdx, charName, textureKey, tx, ty, wx, wy });
-    console.log('[GameScene]   tile at spawn:', this._tileMap?.[ty]?.[tx], '(1=floor 3=wall)');
-    console.log('[GameScene]   texture exists:', this.textures.exists(textureKey));
-    console.log('[GameScene]   anim exists:', this.anims.exists(`${charIdx}_idle`));
 
     this._mySprite = this.add.sprite(wx, wy, textureKey)
       .setDepth(DEPTH_ENTITY + 1)
       .setDisplaySize(18, 18);
 
-    console.log('[GameScene]   sprite active/visible/alpha:', this._mySprite?.active, this._mySprite?.visible, this._mySprite?.alpha);
-
     this._mySprite.play(`${charIdx}_idle`);
     this._myHpBar = this._createHpBar();
-
-    this._myTilePos     = { x: tx, y: ty };
-    this._myDisplayPos  = { x: wx, y: wy };
   }
 
   // ── HP bars ───────────────────────────────────────────────────────────

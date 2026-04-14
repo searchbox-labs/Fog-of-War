@@ -26,7 +26,6 @@ export default class FogSystem {
     this._eraseGfx.fillStyle(0xffffff, 1);
     this._eraseGfx.fillCircle(0, 0, REVEAL_RADIUS);
 
-    console.log('[FogSystem] ready — reveal radius:', REVEAL_RADIUS, 'fogRT:', WORLD_W, 'x', WORLD_H);
   }
 
   update(playerTileX, playerTileY) {
@@ -54,12 +53,6 @@ export default class FogSystem {
     this.fogRT.fill(0x050508, 0.95);
     this.fogRT.erase(this._eraseGfx);
 
-    if (!this._logged) {
-      this._logged = true;
-      console.log('[FogSystem] first update — player world pos:', wx, wy,
-        '| erase circle pos:', this._eraseGfx.x, this._eraseGfx.y,
-        '| radius:', REVEAL_RADIUS);
-    }
   }
 
   destroy() {

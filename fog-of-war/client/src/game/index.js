@@ -14,8 +14,7 @@ export function createPhaserGame(parent) {
     pixelArt: true,              // crisp pixel art scaling
 
     scale: {
-      mode: Phaser.Scale.RESIZE, // fills the parent div dynamically
-      autoCenter: Phaser.Scale.CENTER_BOTH,
+      mode: Phaser.Scale.RESIZE,
     },
 
     scene: [PreloadScene, GameScene],

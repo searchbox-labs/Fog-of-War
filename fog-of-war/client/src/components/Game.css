@@ -12,12 +12,19 @@
   inset: 52px 0 0 0;   /* leave room for HUD bar at top */
   width: 100%;
   height: calc(100vh - 52px);
+  /* DEBUG: UNCOMMENT TO SEE PHASER CONTAINER BOUNDS */
+  /* border: 2px solid #0f0; */
 }
 
-/* Phaser canvas itself */
+/* Phaser canvas itself — must fill the container.
+   Phaser's scale manager will set its own dimensions. 
+   Removing the !important overrides allows Phaser to correctly 
+   align its internal coordinate system with the screen. */
 .game__phaser canvas {
   display: block;
   image-rendering: pixelated;
+  /* DEBUG: UNCOMMENT TO SEE CANVAS BOUNDS */
+  /* outline: 2px solid #f0f; */
 }
 
 .game__controls-hint {
