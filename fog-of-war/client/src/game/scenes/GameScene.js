@@ -173,18 +173,6 @@ export default class GameScene extends Phaser.Scene {
       this._updateHpBar(this._myHpBar, this._mySprite.x, this._mySprite.y - 12, state.myHp);
       this.lighting.movePlayerLight(this._mySprite.x, this._mySprite.y);
 
-      // Bright marker ABOVE the fog so the player is always findable
-      if (!this._playerMarker) {
-        this._playerMarker = this.add.graphics().setDepth(DEPTH_FOG + 5);
-      }
-      this._playerMarker.clear();
-      // Outer ring — bright green
-      this._playerMarker.lineStyle(2, 0x00ff88, 0.9);
-      this._playerMarker.strokeCircle(this._mySprite.x, this._mySprite.y, 10);
-      // Small dot at center
-      this._playerMarker.fillStyle(0x00ff88, 1);
-      this._playerMarker.fillCircle(this._mySprite.x, this._mySprite.y, 2);
-
       // Animation switching
       const charIdx = state.selectedCharacter ?? 0;
       if (dist > ANIM_THRESHOLD) {
