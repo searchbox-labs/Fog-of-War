@@ -555,6 +555,25 @@ func (e *GameEngine) tick() {
 	// Game over: time up or only 1 player left
 	gameOver := remaining == 0 || (aliveCount <= 1 && len(e.Players) > 1)
 
+	// Determine winner: richest alive player
+	var winnerID string
+	if gameOver {
+		var richest *PlayerState
+		for _, p := range e.Players {
+			if p.Status != "alive" {
+				continue
+			}
+			if richest == nil || p.Treasure > richest.Treasure {
+				richest = p
+			}
+		}
+		if richest != nil {
+			winnerID = richest.ID.String()
+		} else if lastAlive != nil {
+			winnerID = lastAlive.ID.String()
+		}
+	}
+
 	e.mu.Unlock()
 
 	// Build and broadcast update
@@ -571,11 +590,7 @@ func (e *GameEngine) tick() {
 	e.broadcast(update)
 
 	if gameOver {
-		winner := ""
-		if lastAlive != nil {
-			winner = lastAlive.ID.String()
-		}
-		e.pushEvent("game_over", winner, "", fmt.Sprintf("%d", remaining))
+		e.pushEvent("game_over", winnerID, "", fmt.Sprintf("%d", remaining))
 		// Signal done so manager can call StopEngine
 		select {
 		case <-e.Done:

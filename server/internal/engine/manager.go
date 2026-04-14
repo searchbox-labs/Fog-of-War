@@ -21,6 +21,7 @@ type SessionMeta struct {
 	Status       string // "waiting" | "in_progress" | "ended"
 	Players      map[uuid.UUID]bool
 	PaidPlayers  map[uuid.UUID]string // playerID → deposit tx sig
+	PlayerWallets map[uuid.UUID]string // playerID → Solana pubkey
 	WinnerPubkey string               // Solana pubkey of winner (set at game end)
 	PayoutTxSig  string               // tx sig of winner payout
 	Watchers     []chan *pb.LobbyUpdate
@@ -143,6 +144,7 @@ func (m *GameManager) CreateSession(hostID uuid.UUID, maxPlayers int, entryFee f
 		Status:       "waiting",
 		Players:      map[uuid.UUID]bool{hostID: true},
 		PaidPlayers:  make(map[uuid.UUID]string),
+		PlayerWallets: make(map[uuid.UUID]string),
 	}
 
 	m.Mu.Lock()
@@ -177,7 +179,7 @@ func (m *GameManager) ListWaitingSessions() []*SessionMeta {
 }
 
 // JoinSession adds a player to a waiting session.
-func (m *GameManager) JoinSession(sessionID, playerID uuid.UUID) error {
+func (m *GameManager) JoinSession(sessionID, playerID uuid.UUID, walletPubkey string) error {
 	s, ok := m.GetSession(sessionID)
 	if !ok {
 		return fmt.Errorf("session not found")
@@ -192,6 +194,9 @@ func (m *GameManager) JoinSession(sessionID, playerID uuid.UUID) error {
 		return fmt.Errorf("session is full (%d/%d)", len(s.Players), s.MaxPlayers)
 	}
 	s.Players[playerID] = true
+	if walletPubkey != "" {
+		s.PlayerWallets[playerID] = walletPubkey
+	}
 	s.Mu.Unlock()
 	s.Broadcast()
 	return nil
@@ -257,7 +262,7 @@ func (m *GameManager) GetEngine(sessionID uuid.UUID) (*GameEngine, bool) {
 }
 
 // ConfirmDeposit verifies a Solana deposit on-chain and records the player as paid.
-func (m *GameManager) ConfirmDeposit(ctx context.Context, sessionID, playerID uuid.UUID, txSig string) error {
+func (m *GameManager) ConfirmDeposit(ctx context.Context, sessionID, playerID uuid.UUID, walletPubkey string, txSig string) error {
 	s, ok := m.GetSession(sessionID)
 	if !ok {
 		return fmt.Errorf("session not found")
@@ -280,6 +285,9 @@ func (m *GameManager) ConfirmDeposit(ctx context.Context, sessionID, playerID uu
 
 	s.Mu.Lock()
 	s.PaidPlayers[playerID] = txSig
+	if walletPubkey != "" {
+		s.PlayerWallets[playerID] = walletPubkey
+	}
 	s.Mu.Unlock()
 
 	fmt.Printf("Deposit confirmed: session=%s player=%s tx=%s\n", sessionID, playerID, txSig)
@@ -294,11 +302,25 @@ func (m *GameManager) PayoutWinner(ctx context.Context, sessionID uuid.UUID, win
 	}
 
 	s.Mu.RLock()
+	// Skip if already paid out
+	if s.PayoutTxSig != "" {
+		s.Mu.RUnlock()
+		return
+	}
 	entryFee := s.EntryFee
 	paidCount := len(s.PaidPlayers)
+	// If winnerPubkey is not provided, try to find it in our stored wallets
+	if winnerPubkey == "" {
+		winnerPubkey = s.PlayerWallets[winnerPlayerID]
+	}
 	s.Mu.RUnlock()
 
 	prizePool := float64(paidCount) * entryFee * 0.9 // 90% to winner
+
+	if winnerPubkey == "" {
+		fmt.Printf("Skipping payout: no wallet address for winner %s in session %s\n", winnerPlayerID, sessionID)
+		return
+	}
 
 	// Skip payout only if:
 	// 1. No Solana service configured, OR

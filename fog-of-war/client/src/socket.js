@@ -150,6 +150,19 @@ export function connectToGame(sessionId) {
 
       let payoutTx = null;
       (update.events || []).forEach(ev => {
+        if (ev.event_type === 'hit') {
+          window.dispatchEvent(new CustomEvent('fog:hit', { detail: { 
+            attackerId: ev.player_id, 
+            targetId: ev.target_id 
+          }}));
+        }
+        if (ev.event_type === 'kill') {
+          window.dispatchEvent(new CustomEvent('fog:hit', { detail: { 
+            attackerId: ev.player_id, 
+            targetId: ev.target_id,
+            isKill: true
+          }}));
+        }
         if (ev.event_type === 'game_over') {
           gameOver   = true;
           gameWinner = ev.player_id;

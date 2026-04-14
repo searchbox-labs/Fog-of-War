@@ -52,12 +52,14 @@ func (s *GameServer) ConfirmDeposit(ctx context.Context, req *pb.ConfirmDepositR
 		return &pb.ConfirmDepositResponse{Success: false, Error: "invalid session ID"}, nil
 	}
 
-	if err := s.Manager.ConfirmDeposit(ctx, sessionID, playerID, req.TxSig); err != nil {
+	walletPubkey := walletFromCtx(ctx)
+
+	if err := s.Manager.ConfirmDeposit(ctx, sessionID, playerID, walletPubkey, req.TxSig); err != nil {
 		return &pb.ConfirmDepositResponse{Success: false, Error: err.Error()}, nil
 	}
 
 	// Also join the session after confirming payment
-	if err := s.Manager.JoinSession(sessionID, playerID); err != nil {
+	if err := s.Manager.JoinSession(sessionID, playerID, walletPubkey); err != nil {
 		// Already in session is not a fatal error
 		fmt.Printf("JoinSession after deposit (possibly already joined): %v\n", err)
 	}
@@ -129,7 +131,9 @@ func (s *GameServer) JoinSession(ctx context.Context, req *pb.JoinSessionRequest
 		return &pb.JoinSessionResponse{Success: false, Error: "invalid session ID"}, nil
 	}
 
-	if err := s.Manager.JoinSession(sessionID, playerID); err != nil {
+	walletPubkey := walletFromCtx(ctx)
+
+	if err := s.Manager.JoinSession(sessionID, playerID, walletPubkey); err != nil {
 		return &pb.JoinSessionResponse{Success: false, Error: err.Error()}, nil
 	}
 

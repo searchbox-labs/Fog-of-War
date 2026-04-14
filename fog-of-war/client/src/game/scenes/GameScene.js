@@ -143,6 +143,32 @@ export default class GameScene extends Phaser.Scene {
     window.addEventListener('fog:combat_flash', this._onCombatFlash);
     window.addEventListener('fog:loot_pickup', this._onLootPickup);
 
+    // Listen for authoritative combat events (hit/kill)
+    this._onHit = (e) => {
+      const { attackerId, targetId, isKill } = e.detail;
+      const attacker = attackerId === this._myId ? { sprite: this._mySprite } : this._entitySprites.get(attackerId);
+      const target = targetId === this._myId ? { sprite: this._mySprite } : this._entitySprites.get(targetId);
+
+      if (attacker && target) {
+        const ax = attacker.sprite.x;
+        const ay = attacker.sprite.y;
+        const tx = target.sprite.x;
+        const ty = target.sprite.y;
+
+        // Muzzle flash at attacker
+        const angle = Phaser.Math.Angle.Between(ax, ay, tx, ty);
+        this.particles.muzzleFlash(ax, ay, Phaser.Math.RadToDeg(angle));
+
+        // Bullet projectile
+        this.particles.fireBullet(ax, ay, tx, ty);
+
+        // Sound FX
+        this.sound.play('sfx_click', { volume: 0.2, pitch: 1.5 }); // Gunshot-ish placeholder
+        if (isKill) this.sound.play('sfx_kill', { volume: 0.5 });
+      }
+    };
+    window.addEventListener('fog:hit', this._onHit);
+
     // Initial state sync
     const s = useGameStore.getState();
     this._syncPlayers(s.players);
@@ -181,6 +207,10 @@ export default class GameScene extends Phaser.Scene {
       this._updateHpBar(this._myHpBar, this._mySprite.x, this._mySprite.y - 12, state.myHp);
       this.lighting.movePlayerLight(this._mySprite.x, this._mySprite.y);
 
+      if (this._myGun) {
+        this._myGun.setPosition(this._mySprite.x + 4, this._mySprite.y + 2);
+      }
+
       // Animation switching
       const charIdx = state.selectedCharacter ?? 0;
       if (dist > ANIM_THRESHOLD) {
@@ -207,6 +237,11 @@ export default class GameScene extends Phaser.Scene {
       ent.displayY = Phaser.Math.Linear(ent.displayY, ent.targetY, MOVE_LERP);
       ent.sprite.setPosition(ent.displayX, ent.displayY);
       this._updateHpBar(ent.hpBar, ent.displayX, ent.displayY - 12, ent.hp);
+
+      if (ent.gun) {
+        ent.gun.setPosition(ent.displayX + 4, ent.displayY + 2);
+        ent.gun.setFlipX(edx < 0);
+      }
 
       // Animation switching
       if (edist > ANIM_THRESHOLD) {
@@ -413,6 +448,12 @@ export default class GameScene extends Phaser.Scene {
 
     this._mySprite.play(`${charIdx}_idle`);
     this._myHpBar = this._createHpBar();
+
+    // Create a handheld weapon that follows me
+    this._myGun = this.add.sprite(wx, wy, 'gun_placeholder')
+      .setDepth(DEPTH_ENTITY + 2)
+      .setDisplaySize(10, 10)
+      .setOrigin(0, 0.5); // Handle is at 0, barrel at 1
   }
 
   // ── HP bars ───────────────────────────────────────────────────────────
@@ -542,8 +583,13 @@ export default class GameScene extends Phaser.Scene {
 
     const hpBar = this._createHpBar();
 
+    const gun = this.add.sprite(wx, wy, 'gun_placeholder')
+      .setDepth(DEPTH_ENTITY + 1)
+      .setDisplaySize(8, 8)
+      .setOrigin(0, 0.5);
+
     this._entitySprites.set(id, {
-      sprite, hpBar,
+      sprite, hpBar, gun,
       targetX: wx, targetY: wy,
       displayX: wx, displayY: wy,
       hp,
@@ -556,6 +602,7 @@ export default class GameScene extends Phaser.Scene {
     if (!ent) return;
     ent.sprite.destroy();
     ent.hpBar.destroy();
+    if (ent.gun) ent.gun.destroy();
     this._entitySprites.delete(id);
   }
 

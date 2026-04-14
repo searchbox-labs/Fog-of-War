@@ -81,12 +81,18 @@ export default class PreloadScene extends Phaser.Scene {
     const SOUNDS = '/assets/sounds/';
     const RPG = `${SOUNDS}kenney_rpg-audio/Audio/`;
     
+    // ── Combat sounds ───────────────────────────────────────────────────
     this.load.audio('sfx_click',  `${RPG}metalClick.ogg`);
     this.load.audio('sfx_move',   `${RPG}footstep00.ogg`);
     this.load.audio('sfx_loot',   `${RPG}handleCoins.ogg`);
     this.load.audio('sfx_hit',    `${RPG}knifeSlice.ogg`);
     this.load.audio('sfx_kill',   `${RPG}chop.ogg`);
     this.load.audio('bgm_ambient', `${SOUNDS}YuraSoop - Dark Ambient.mp3`);
+
+    // ── Placeholder gun and projectiles ─────────────────────────────────
+    // Using bow as a placeholder for a "handheld weapon" or if you have a gun.png, replace it here.
+    this.load.image('gun_placeholder', `${FRAMES}weapon_bow.png`);
+    this.load.image('bullet', `${FRAMES}weapon_arrow.png`);
 
     // Suppress 404s for missing hit frames (not every char has one)
     this.load.on('loaderror', (file) => {

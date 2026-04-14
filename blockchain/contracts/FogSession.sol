@@ -161,4 +161,15 @@ contract FogSession {
     function getVault(uint256 sessionId) external view returns (address) {
         return address(sessions[sessionId].vault);
     }
+
+    // ─── Withdrawal ──────────────────────────────────────────
+    /// @notice Allow owner to withdraw accumulated house fees
+    function withdraw() external onlyOwner {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "Nothing to withdraw");
+        payable(owner).transfer(balance);
+    }
+
+    // Allow contract to receive ETH (house fees from vaults)
+    receive() external payable {}
 }

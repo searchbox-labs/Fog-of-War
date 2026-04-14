@@ -20,6 +20,48 @@ export default class ParticleSystem {
 
   // ── Combat hit — red sparks ────────────────────────────────────────────
 
+  muzzleFlash(x, y, angle) {
+    if (!this._ok()) return;
+    const em = this.scene.add.particles(x, y, 'pfx_spark', {
+      lifespan: 100,
+      alpha: { start: 1, end: 0 },
+      scale: { start: 0.5, end: 0.1 },
+      speed: { min: 50, max: 150 },
+      angle: { min: angle - 20, max: angle + 20 },
+      blendMode: 'ADD',
+      depth: DEPTH_PARTICLE + 1,
+      emitting: false,
+    });
+    em.explode(5);
+    this.scene.time.delayedCall(150, () => em.destroy());
+  }
+
+  fireBullet(sx, sy, tx, ty) {
+    if (!this._ok()) return;
+    const bullet = this.scene.add.image(sx, sy, 'bullet')
+      .setDisplaySize(12, 6)
+      .setDepth(DEPTH_PARTICLE)
+      .setAlpha(1);
+
+    const angle = Phaser.Math.Angle.Between(sx, sy, tx, ty);
+    bullet.setRotation(angle);
+
+    // Muzzle flash at start
+    this.muzzleFlash(sx, sy, Phaser.Math.RadToDeg(angle));
+
+    this.scene.tweens.add({
+      targets: bullet,
+      x: tx,
+      y: ty,
+      duration: 150,
+      ease: 'Linear',
+      onComplete: () => {
+        bullet.destroy();
+        this.combatHit(tx / TILE, ty / TILE);
+      }
+    });
+  }
+
   combatHit(tileX, tileY) {
     if (!this._ok()) return;
     const cx = (tileX + 0.5) * TILE;
