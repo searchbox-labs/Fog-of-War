@@ -13,15 +13,11 @@ import WalletSelector from './WalletSelector';
 import WalletDebug from './WalletDebug';
 import './Landing.css';
 
-const DEVNET_RPC = 'https://api.devnet.solana.com';
-
-const handleSoloPlay = () => {
-  const store = useGameStore.getState();
-  store.setLocalMode(true);
-  store.setMyId('local');
-  store.setWallet('SOLO MODE', 0);
-  store.setScreen('game');
-};
+const CHAR_NAMES = [
+  'knight_m', 'elf_m', 'lizard_m', 'wizzard_m',
+  'dwarf_m', 'orc_warrior', 'knight_f', 'elf_f',
+];
+const SPRITE_BASE = '/assets/0x72_DungeonTilesetII_v1.7/frames/';
 
 export default function Landing() {
   const wallet = useWallet();
@@ -79,6 +75,13 @@ export default function Landing() {
     draw();
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
   }, []);
+
+  const handleSoloPlay = () => {
+    store.setLocalMode(true);
+    store.setMyId('local');
+    store.setWallet('SOLO MODE', 0);
+    store.setScreen('game');
+  };
 
   const ensureAuth = async () => {
     if (!connected || !publicKey) throw new Error('Connect your wallet first');
@@ -225,16 +228,20 @@ export default function Landing() {
 
             {/* Character Selector */}
             <div className="character-selector">
-              <div className="character-selector__label">SELECT CHARACTER (0-7)</div>
+              <div className="character-selector__label">SELECT YOUR HERO</div>
               <div className="character-selector__grid">
-                {Array.from({ length: 8 }, (_, i) => (
+                {CHAR_NAMES.map((name, i) => (
                   <button
                     key={i}
                     className={`char-btn ${store.selectedCharacter === i ? 'char-btn--selected' : ''}`}
                     onClick={() => store.setSelectedCharacter(i)}
-                    title={`Character ${i}`}
+                    title={name.replace('_', ' ')}
                   >
-                    {i}
+                    <img 
+                      src={`${SPRITE_BASE}${name}_idle_anim_f0.png`} 
+                      alt={name}
+                      className="char-btn__img"
+                    />
                   </button>
                 ))}
               </div>
