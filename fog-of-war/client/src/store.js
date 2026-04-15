@@ -23,6 +23,7 @@ export const useGameStore = create((set, get) => ({
   npcs:            [],
   myId:            null,
   myPos:           { x: 64, y: 64 },
+  _posInitialized: false,  // true once server spawn position has been received
   myHp:            100,
   myTreasure:      0,
   footprints:      [],

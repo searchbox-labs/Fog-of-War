@@ -1,0 +1,91 @@
+Router rendering, current screen: lobby 2 App.jsx:20:11
+[FOG] connectToGame — sessionId: f9f592e3-0a3b-4ddf-8108-afbb43a49a52 myId: e2b6dba7-10ff-49ea-b655-8cadc956f527 socket.js:98:11
+Router rendering, current screen: game App.jsx:20:11
+Router rendering, current screen: game App.jsx:20:11
+     Phaser v3.90.0 (WebGL | Web Audio)  https://phaser.io/v390 2 phaser.js:16707:21
+[FOG] Syncing initial spawn position from server: (20, 20) socket.js:145:17
+[FOG] Event: spawn player: e2b6dba7-10ff-49ea-b655-8cadc956f527 target: <empty string> socket.js:176:17
+[FOG] Tick — myId: e2b6dba7-10ff-49ea-b655-8cadc956f527 | HP: 100 status: alive | serverPos: (20, 20) | clientPos: (null, null) | remaining: 300s | players: 1 | npcs: 4 socket.js:218:17
+WebGL warning: texImage: Alpha-premult and y-flip are deprecated for non-DOM-Element uploads.
+WebGL warning: texImage: Alpha-premult and y-flip are deprecated for non-DOM-Element uploads.
+WebGL warning: generateMipmap: Tex image TEXTURE_2D level 0 is incurring lazy initialization. 27
+WebGL warning: generateMipmap: Tex image TEXTURE_2D level 0 is incurring lazy initialization. 3
+[FOG] Tick — myId: e2b6dba7-10ff-49ea-b655-8cadc956f527 | HP: 100 status: alive | serverPos: (20, 20) | clientPos: (20, 20) | remaining: 299s | players: 1 | npcs: 4 socket.js:218:17
+[FOG] Tick — myId: e2b6dba7-10ff-49ea-b655-8cadc956f527 | HP: 100 status: alive | serverPos: (20, 20) | clientPos: (20, 20) | remaining: 298s | players: 1 | npcs: 4 socket.js:218:17
+WebGL warning: generateMipmap: Tex image TEXTURE_2D level 0 is incurring lazy initialization. 5
+SES_UNCAUGHT_EXCEPTION: TypeError: this._snapCameraToPlayer is not a function
+    create GameScene.js:192
+    emit phaser.js:227
+    refresh phaser.js:195670
+    step phaser.js:196385
+    emit phaser.js:220
+    step phaser.js:17196
+    step phaser.js:18240
+    step phaser.js:31352
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+    step phaser.js:31356
+lockdown-install.js:1:145467
+[FOG] Tick — myId: e2b6dba7-10ff-49ea-b655-8cadc956f527 | HP: 100 status: alive | serverPos: (20, 20) | clientPos: (20, 20) | remaining: 298s | players: 1 | npcs: 4 socket.js:218:17
+[FOG] Event: npc_kill player: 95b1fc36-5a3a-4733-bde6-669ac04ae3e8 target: e2b6dba7-10ff-49ea-b655-8cadc956f527 socket.js:176:17
+[FOG] Game ending — cancelling stream. eliminated: true gameOver: false winner: null socket.js:244:17
+Router rendering, current screen: results 2 App.jsx:20:11
+
+​
+

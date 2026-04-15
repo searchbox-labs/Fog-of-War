@@ -1,5 +1,27 @@
 import { AuthClient, GameClient } from './grpc/client';
 import { useGameStore } from './store';
+import { isWalkable } from './game/tileMap.js';
+
+// BFS outward from (x,y) to find the nearest walkable floor tile.
+function nearestWalkable(x, y) {
+  if (isWalkable(x, y)) return { x, y };
+  const visited = new Set();
+  const queue = [[x, y]];
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+  while (queue.length) {
+    const [cx, cy] = queue.shift();
+    const key = `${cx},${cy}`;
+    if (visited.has(key)) continue;
+    visited.add(key);
+    if (isWalkable(cx, cy)) return { x: cx, y: cy };
+    for (const [dx, dy] of dirs) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx >= 0 && ny >= 0 && nx < 128 && ny < 128) queue.push([nx, ny]);
+    }
+    if (visited.size > 2000) break; // safety — should never happen
+  }
+  return { x, y }; // fallback to original if nothing found
+}
 
 let authClient  = new AuthClient();
 let gameClient  = null;
@@ -89,15 +111,23 @@ export function watchLobby(sessionId) {
 
 // ─── In-game ──────────────────────────────────────────────────────────────
 
+// Throttled tick log — logs once per second regardless of tick rate
+let _lastTickLog = 0;
+
 export function connectToGame(sessionId) {
   ensureClient();
-  const store = useGameStore.getState();
-  store.setMyId(localStorage.getItem('fog_player_id'));
+  const myId = localStorage.getItem('fog_player_id');
+  console.log('[FOG] connectToGame — sessionId:', sessionId, 'myId:', myId);
 
-  // Reset game state so stale HP/treasure from a previous game don't bleed in
+  useGameStore.getState().setMyId(myId);
+
+  // Reset game state. myPos is intentionally set to null so the first server
+  // tick can place us at the correct server-assigned spawn position.
   useGameStore.setState({
     myHp: 100, myTreasure: 0,
-    myPos: { x: 64, y: 64 },
+    myPos: null,          // will be synced from first server tick
+    _posInitialized: false,
+    timeLeft: 300,        // reset timer so it doesn't flash stale solo value
     players: {}, npcs: [], treasures: [], footprints: [],
     bloodHuntActive: false, bloodHuntTarget: null,
     leaderboard: [],
@@ -126,6 +156,24 @@ export function connectToGame(sessionId) {
         };
       });
 
+      // ── Sync initial position from server ─────────────────────────────
+      // The server assigns each player a unique spawn corner. The client
+      // resets myPos to null on connect, so the first tick sets the real
+      // starting position. After that, myPos is client-predicted only.
+      // Because the dungeon is client-generated, the server corner may land
+      // on a wall — BFS outward to find the nearest walkable tile.
+      const myServerPlayer = players[myId];
+      if (myServerPlayer && !store._posInitialized) {
+        const rawX = Math.round(myServerPlayer.pos.x);
+        const rawY = Math.round(myServerPlayer.pos.y);
+        const { x: spawnX, y: spawnY } = nearestWalkable(rawX, rawY);
+        console.log(`[FOG] Syncing spawn: server=(${rawX},${rawY}) walkable=(${spawnX},${spawnY})`);
+        useGameStore.setState({
+          myPos: { x: spawnX, y: spawnY },
+          _posInitialized: true,
+        });
+      }
+
       // Process NPC positions
       const npcs = (update.npcs || []).map(n => ({
         id: n.id, x: n.x, y: n.y, hp: n.health,
@@ -150,15 +198,16 @@ export function connectToGame(sessionId) {
 
       let payoutTx = null;
       (update.events || []).forEach(ev => {
+        console.log('[FOG] Event:', ev.event_type, 'player:', ev.player_id, 'target:', ev.target_id);
         if (ev.event_type === 'hit') {
-          window.dispatchEvent(new CustomEvent('fog:hit', { detail: { 
-            attackerId: ev.player_id, 
-            targetId: ev.target_id 
+          window.dispatchEvent(new CustomEvent('fog:hit', { detail: {
+            attackerId: ev.player_id,
+            targetId: ev.target_id
           }}));
         }
         if (ev.event_type === 'kill') {
-          window.dispatchEvent(new CustomEvent('fog:hit', { detail: { 
-            attackerId: ev.player_id, 
+          window.dispatchEvent(new CustomEvent('fog:hit', { detail: {
+            attackerId: ev.player_id,
             targetId: ev.target_id,
             isKill: true
           }}));
@@ -186,6 +235,22 @@ export function connectToGame(sessionId) {
       const bhThreshold  = Math.floor(duration * 0.10); // last 10% of session
       if (remaining <= bhThreshold) bloodHuntActive = true;
 
+      // Throttled debug log — once per second
+      const now = Date.now();
+      if (now - _lastTickLog > 1000) {
+        _lastTickLog = now;
+        const me = players[myId];
+        console.log(
+          `[FOG] Tick — myId: ${myId}`,
+          `| HP: ${me?.hp ?? '?'} status: ${me?.status ?? '?'}`,
+          `| serverPos: (${me ? Math.round(me.pos.x) : '?'}, ${me ? Math.round(me.pos.y) : '?'})`,
+          `| clientPos: (${store.myPos?.x ?? 'null'}, ${store.myPos?.y ?? 'null'})`,
+          `| remaining: ${remaining}s`,
+          `| players: ${Object.keys(players).length}`,
+          `| npcs: ${npcs.length}`,
+        );
+      }
+
       useGameStore.getState().applyTick({
         players,
         npcs,
@@ -197,16 +262,12 @@ export function connectToGame(sessionId) {
         leaderboard:     leaderboard.map(p => ({ id: p.id, treasure: p.treasure || 0, hp: p.hp })),
       });
 
-      // Eliminated: current player's HP hit 0 — go to results immediately
+      // Eliminated or game over — stop the stream then go to results
       const myPlayer = players[myId];
-      if (myPlayer?.status === 'eliminated' && useGameStore.getState().screen === 'game') {
-        const fee   = store.lobbyFee || 0;
-        const count = Object.keys(players).length;
-        const prize = (count * fee * 0.9).toFixed(2);
-        useGameStore.getState().setResults(gameWinner, prize, payoutTx);
-      }
-
-      if (gameOver) {
+      const shouldEnd = (myPlayer?.status === 'eliminated' && useGameStore.getState().screen === 'game') || gameOver;
+      if (shouldEnd) {
+        console.log('[FOG] Game ending — cancelling stream. eliminated:', myPlayer?.status === 'eliminated', 'gameOver:', gameOver, 'winner:', gameWinner);
+        if (gameStream) { try { gameStream.cancel(); } catch (_) {} gameStream = null; }
         const fee   = store.lobbyFee || 0;
         const count = Object.keys(players).length;
         const prize = (count * fee * 0.9).toFixed(2);
@@ -214,28 +275,32 @@ export function connectToGame(sessionId) {
       }
     },
     (err) => {
-      console.error('Game stream error:', err);
+      console.error('[FOG] Game stream error:', err);
       setTimeout(() => connectToGame(sessionId), 2000);
     },
-    () => console.log('Game stream ended'),
+    () => console.log('[FOG] Game stream ended'),
   );
 }
 
 export async function sendMove(tx, ty) {
-  if (!gameClient) return;
+  if (!gameClient) { console.warn('[FOG] sendMove — no gameClient'); return; }
   const { sessionId } = useGameStore.getState();
-  if (!sessionId) return;
-  try { await gameClient.move(sessionId, tx, ty); } catch (e) { console.error('Move failed:', e); }
+  if (!sessionId) { console.warn('[FOG] sendMove — no sessionId'); return; }
+  try {
+    const res = await gameClient.move(sessionId, tx, ty);
+    if (!res.success) console.warn('[FOG] sendMove rejected by server:', res.error_message);
+  } catch (e) { console.error('[FOG] Move failed:', e); }
 }
 
 export async function sendAttack(targetPlayerId) {
-  if (!gameClient) return;
+  if (!gameClient) { console.warn('[FOG] sendAttack — no gameClient'); return; }
   const { sessionId } = useGameStore.getState();
-  if (!sessionId) return;
+  if (!sessionId) { console.warn('[FOG] sendAttack — no sessionId'); return; }
   try {
+    console.log('[FOG] sendAttack → target:', targetPlayerId);
     return await gameClient.attack(sessionId, targetPlayerId);
   } catch (e) {
-    console.error('Attack failed:', e);
+    console.error('[FOG] Attack failed:', e);
   }
 }
 

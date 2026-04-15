@@ -84,7 +84,8 @@ export default function Game() {
   const movePlayerRef = useRef(null);
   const hasMoved      = useRef(false);
 
-  const [showSpawnPrompt, setShowSpawnPrompt] = useState(!store.localMode);
+  // Solo: show prompt until first keypress. Multiplayer: hide as soon as server position arrives.
+  const [showSpawnPrompt, setShowSpawnPrompt] = useState(store.localMode);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   // ── Reload lock ────────────────────────────────────────────────────────
@@ -269,7 +270,10 @@ export default function Game() {
   useEffect(() => {
     movePlayerRef.current = (dx, dy) => {
       const { localMode, myPos } = stateRef.current;
-      if (!myPos) return;
+      if (!myPos) {
+        console.warn('[FOG] movePlayer blocked — myPos not yet received from server');
+        return;
+      }
 
       if (!hasMoved.current) {
         hasMoved.current = true;
@@ -280,7 +284,12 @@ export default function Game() {
       const ny = Math.max(0, Math.min(GRID_H - 1, myPos.y + dy));
 
       // Block movement into walls / void tiles
-      if (!isWalkable(nx, ny)) return;
+      if (!isWalkable(nx, ny)) {
+        console.log(`[FOG] movePlayer blocked by wall at (${nx}, ${ny})`);
+        return;
+      }
+
+      console.log(`[FOG] movePlayer (${myPos.x},${myPos.y}) → (${nx},${ny})`);
 
       trailRef.current.push({ x: myPos.x, y: myPos.y, ts: Date.now() });
 
@@ -309,6 +318,7 @@ export default function Game() {
           window.dispatchEvent(new CustomEvent('fog:loot_pickup', { detail: { x: nx, y: ny } }));
         } else {
           collectLoot(picked.id);
+          window.dispatchEvent(new CustomEvent('fog:loot_pickup', { detail: { x: nx, y: ny } }));
         }
       }
     };

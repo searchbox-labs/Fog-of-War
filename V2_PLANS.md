@@ -275,3 +275,95 @@ Current Plan
      claude --resume faca11cb-8e14-402a-8cea-c9d8d1280f0c
 
       /plugin install frontend-design@claude-plugins-official
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+       BGM (large .mp3) is kicked off last.
+  - A _started guard prevents double-firing on React StrictMode remount.
+
+  When Phaser's loader then runs this.load.image(key, url) / this.load.audio(key, url) for those exact same URLs, the browser returns them from cache — the loading bar flies through in under a second instead
+  of waiting on the network.
+
+✻ Churned for 3m 8s
+
+❯ revert all the changes you made please                                                                                                                                                                         
+
+⏺ Bash(git diff --stat HEAD)
+  ⎿  (No output)
+
+⏺ Bash(git log --oneline -5)
+  ⎿  5da86bd (feat): prefetch game utilities for faster loading
+     4f910c8 (whip): Safari mobile controls
+     87f8e24 (whip): Go build bugs
+     … +2 lines (ctrl+o to expand)
+
+⏺ Bash(git show --stat 5da86bd && git show --stat 4f910c8)
+  ⎿  commit 5da86bddc8241f07b1535a6996b84e7826f41a9a
+     Author: Raufu Abdulraman <coder0214h@gmail.com>
+     Date:   Wed Apr 15 01:26:25 2026 +0100
+     … +15 lines (ctrl+o to expand)
+
+⏺ Bash(git log --oneline -10)
+  ⎿  5da86bd (feat): prefetch game utilities for faster loading
+     4f910c8 (whip): Safari mobile controls
+     87f8e24 (whip): Go build bugs
+     … +7 lines (ctrl+o to expand)
+
+⏺ Let me check what my changes specifically touched across the commits:
+
+⏺ Bash(git log --oneline --all -- fog-of-war/client/src/game/scenes/GameScene.js fog-of-war/client/src/game/scenes/PreloadScene.js fog-of-war/client/src/game/index.js…)
+  ⎿  5da86bd (feat): prefetch game utilities for faster loading
+     216a094 (feat): weapons
+     817366f (feat): Sound Effects
+     … +4 lines (ctrl+o to expand)
+
+⏺ The prefetchAssets work is one clean commit (5da86bd). The camera/console.log fixes are spread across earlier commits that the user has since built on top of (weapons, sounds, etc.) — so reverting those
+  would affect the user's own work too.
+
+  Let me revert the prefetchAssets commit cleanly first, then figure out if there's more to undo:
+
+⏺ Bash(git revert 5da86bd --no-edit)
+  ⎿  [main 8afbb7f] Revert "(feat): prefetch game utilities for faster loading"
+      Date: Wed Apr 15 01:31:26 2026 +0100
+      2 files changed, 3 insertions(+), 111 deletions(-)
+      delete mode 100644 fog-of-war/client/src/game/prefetchAssets.js
+
+⏺ That cleans up prefetchAssets.js and App.jsx.
+
+  For the other changes I made (camera snap fix in GameScene.js, console.log removals in GameScene.js, FogSystem.js, PreloadScene.js, index.js) — those are spread across commits that the user has since built
+  on top of (weapons, sounds, Safari mobile controls). Reverting those commits would pull out the user's own work too.
+
+  Which of these do you also want undone?
+  - The camera snap fix (moved snap from create() to update())
+  - The console.log removals across GameScene / FogSystem / PreloadScene / index.js
+
+  If yes, it's easier for me to manually restore those specific changes in the files rather than reverting whole commits.
+
+✻ Brewed for 1m 31s
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯                                                                                                                                                                             
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Press Ctrl-C again to exit             
+
+Resume this session with:
+claude --resume 518e3a3a-e290-425e-8905-e629c785ae4d
+(base) koded@Kodeds-MacBook-Pro Fog-of-War % 

@@ -12,17 +12,18 @@ import (
 )
 
 const (
-	GridW        = 128
-	GridH        = 128
-	TickMs       = 100    // 10 Hz
-	AttackRange  = 2.0    // Manhattan distance for melee attack
-	AttackDamage = 15     // HP per attack
-	NPCDamage    = 8      // HP per NPC hit
-	NPCSpeed     = 0.6    // tiles per tick
-	PlayerSpeed  = 1.0    // tiles per tick
-	LootPerMap   = 40     // loot items spawned on map
-	NpcChaseP    = 0.70   // probability NPC chases nearest player
-	BloodHuntPct = 0.10   // blood hunt activates in last 10% of session time
+	GridW           = 128
+	GridH           = 128
+	TickMs          = 100   // 10 Hz
+	AttackRange     = 2.0   // Manhattan distance for melee attack
+	AttackDamage    = 15    // HP per attack
+	NPCDamage       = 2     // HP per NPC hit — low so players have time to react and run
+	NPCAttackTicks  = 15    // NPCs attack once every N ticks → 1.5 s cadence
+	NPCSpeed        = 0.6   // tiles per tick
+	PlayerSpeed     = 1.0   // tiles per tick
+	LootPerMap      = 40    // loot items spawned on map
+	NpcChaseP       = 0.70  // probability NPC chases nearest player
+	BloodHuntPct    = 0.10  // blood hunt activates in last 10% of session time
 )
 
 // ─── Player State ─────────────────────────────────────────────────────────────
@@ -108,6 +109,8 @@ type GameEngine struct {
 	NPCs     []*NPCState
 	Events   []*pb.GameEvent
 
+	tickCount uint64 // incremented every tick; used to pace NPC attacks
+
 	Done      chan struct{}
 	subs      []chan *pb.GameStateUpdate
 	mu        sync.RWMutex
@@ -150,13 +153,36 @@ func (e *GameEngine) spawnLoot() {
 	}
 }
 
+// playerSpawnPositions mirrors the spawn corners used by AddPlayer.
+var playerSpawnPositions = [][2]float64{
+	{20, 20}, {108, 20}, {20, 108}, {108, 108},
+	{64, 10}, {64, 118}, {10, 64}, {118, 64},
+}
+
+// tooCloseToSpawn returns true if (px,py) is within minDist tiles of any player spawn corner.
+func tooCloseToSpawn(px, py, minDist float64) bool {
+	for _, sp := range playerSpawnPositions {
+		if math.Abs(px-sp[0])+math.Abs(py-sp[1]) < minDist {
+			return true
+		}
+	}
+	return false
+}
+
 // SpawnNPCs adds bot NPCs to the map. Called by GameManager after Start().
 func (e *GameEngine) SpawnNPCs(count int) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for i := 0; i < count; i++ {
-		px := 10 + rand.Float64()*float64(GridW-20)
-		py := 10 + rand.Float64()*float64(GridH-20)
+		// Keep re-rolling until we find a spot that isn't near any player spawn
+		var px, py float64
+		for {
+			px = 10 + rand.Float64()*float64(GridW-20)
+			py = 10 + rand.Float64()*float64(GridH-20)
+			if !tooCloseToSpawn(px, py, 25) {
+				break
+			}
+		}
 		e.NPCs = append(e.NPCs, &NPCState{
 			ID:      uuid.New(),
 			X:       px,
@@ -374,6 +400,8 @@ func (e *GameEngine) tickLoop() {
 }
 
 func (e *GameEngine) tick() {
+	e.tickCount++
+
 	elapsed := time.Since(e.StartTime).Seconds()
 	remaining := e.DurationSecs - int(elapsed)
 	if remaining < 0 {
@@ -452,8 +480,8 @@ func (e *GameEngine) tick() {
 			npc.Y = clamp(npc.Y, 0, GridH-1)
 		}
 
-		// NPC combat — attack adjacent players
-		if nearestPlayer != nil && nearestDist <= 1.5 {
+		// NPC combat — attack adjacent players every NPCAttackTicks (500 ms cadence)
+		if nearestPlayer != nil && nearestDist <= 1.5 && e.tickCount%NPCAttackTicks == 0 {
 			nearestPlayer.Mu.Lock()
 			nearestPlayer.HP -= NPCDamage
 			died := nearestPlayer.HP <= 0

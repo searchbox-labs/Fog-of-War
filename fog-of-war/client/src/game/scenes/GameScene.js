@@ -28,6 +28,8 @@ export default class GameScene extends Phaser.Scene {
   // ── Phaser lifecycle ──────────────────────────────────────────────────
 
   create() {
+    this._destroyed = false; // guard — prevents subscriber from running after scene teardown
+
     // Systems
     this.fog        = new FogSystem(this);
     this.particles  = new ParticleSystem(this);
@@ -93,6 +95,8 @@ export default class GameScene extends Phaser.Scene {
     // the old selector-per-field approach.
     this._unsubs = [
       useGameStore.subscribe((state, prev) => {
+        if (this._destroyed) return; // scene was torn down — ignore all further updates
+
         if (state.myId !== prev.myId) {
           this._myId = state.myId;
         }
@@ -118,6 +122,7 @@ export default class GameScene extends Phaser.Scene {
           if (state.myHp < prev.myHp && this._mySprite) {
             this.particles.flashSprite(this._mySprite);
             this.particles.combatHit(this._myTilePos.x, this._myTilePos.y);
+            this.sound.play('sfx_hit', { volume: 0.3 });
           }
         }
 
@@ -764,12 +769,24 @@ export default class GameScene extends Phaser.Scene {
     return window.innerWidth < 768 ? 1.5 : 2;
   }
 
+  _snapCameraToPlayer() {
+    if (this._mySprite) {
+      this.cameras.main.centerOn(this._mySprite.x, this._mySprite.y);
+    } else {
+      const cx = (this._myDisplayPos.x);
+      const cy = (this._myDisplayPos.y);
+      this.cameras.main.centerOn(cx, cy);
+    }
+  }
+
   // ── Cleanup ───────────────────────────────────────────────────────────
 
   shutdown() {
+    this._destroyed = true; // block any in-flight subscriber calls immediately
     this._unsubs?.forEach(fn => fn());
     window.removeEventListener('fog:combat_flash', this._onCombatFlash);
     window.removeEventListener('fog:loot_pickup', this._onLootPickup);
+    window.removeEventListener('fog:hit', this._onHit);
     this.fog?.destroy();
     this.particles?.destroy();
     this.lighting?.destroy();

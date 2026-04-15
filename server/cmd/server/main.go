@@ -28,7 +28,7 @@ func main() {
 
 	solana := services.NewSolanaService()
 	solana.AirdropIfLow(context.Background())
-
+         
 	manager := engine.NewGameManager(arbitrum, solana)
 
 	// 2. Setup gRPC Server
