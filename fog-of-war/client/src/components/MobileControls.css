@@ -46,7 +46,7 @@
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
-  touch-action: manipulation;
+  touch-action: none;
   transition: background 0.1s, box-shadow 0.1s;
   box-shadow: 0 0 0 0 rgba(255, 107, 0, 0);
 }
@@ -77,7 +77,7 @@
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
-  touch-action: manipulation;
+  touch-action: none;
   pointer-events: all;
   transition: background 0.1s, box-shadow 0.1s;
   box-shadow: 0 0 0 0 rgba(255, 30, 30, 0);

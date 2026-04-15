@@ -1,14 +1,48 @@
+import { useRef, useEffect } from 'react';
 import './MobileControls.css';
 
 export default function MobileControls({ onMove, onAttack }) {
+  const moveIntervalRef = useRef(null);
+
+  const startMoving = (dx, dy) => {
+    if (moveIntervalRef.current) return;
+    onMove(dx, dy); // Move once immediately
+    // Continue moving while held
+    moveIntervalRef.current = setInterval(() => {
+      onMove(dx, dy);
+    }, 200);
+  };
+
+  const stopMoving = () => {
+    if (moveIntervalRef.current) {
+      clearInterval(moveIntervalRef.current);
+      moveIntervalRef.current = null;
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => stopMoving();
+  }, []);
+
   const btn = (label, dx, dy) => (
     <button
       key={`${dx}-${dy}`}
       className="dpad__btn"
-      onPointerDown={(e) => {
-        e.preventDefault();
-        onMove(dx, dy);
+      // Use both touch and pointer for widest compatibility
+      onTouchStart={(e) => {
+        if (e.cancelable) e.preventDefault();
+        startMoving(dx, dy);
       }}
+      onTouchEnd={stopMoving}
+      onPointerDown={(e) => {
+        // Only trigger if touch isn't available/used
+        if (e.pointerType === 'mouse') {
+          startMoving(dx, dy);
+        }
+      }}
+      onPointerUp={stopMoving}
+      onPointerLeave={stopMoving}
     >
       {label}
     </button>
@@ -32,9 +66,12 @@ export default function MobileControls({ onMove, onAttack }) {
 
       <button
         className="atk-btn"
-        onPointerDown={(e) => {
-          e.preventDefault();
+        onTouchStart={(e) => {
+          if (e.cancelable) e.preventDefault();
           onAttack();
+        }}
+        onPointerDown={(e) => {
+          if (e.pointerType === 'mouse') onAttack();
         }}
       >
         ATK
