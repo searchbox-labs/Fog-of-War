@@ -205,3 +205,6 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+house-wallet.json
+blockchain/house-wallet.json
+server/house-wallet.json

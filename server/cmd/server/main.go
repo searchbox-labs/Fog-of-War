@@ -14,7 +14,7 @@ import (
 	"github.com/koded/fog-of-war/server/internal/api"
 	"github.com/koded/fog-of-war/server/internal/engine"
 	"github.com/koded/fog-of-war/server/internal/services"
-	"github.com/koded/fog-of-war/server/proto"
+	pb "github.com/koded/fog-of-war/server/proto"
 	"github.com/rs/cors"
 	"google.golang.org/grpc"
 )

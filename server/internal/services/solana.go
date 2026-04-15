@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -39,8 +40,8 @@ func NewSolanaService() *SolanaService {
 		// Fallback: try reading from a local JSON file (common for Solana CLI wallets)
 		data, err := os.ReadFile("house-wallet.json")
 		if err == nil {
-			// Try to parse the byte array format [1,2,3...]
-			key, err := solana.PrivateKeyFromSolanaKeygen(string(data))
+			var key solana.PrivateKey
+			err = json.Unmarshal(data, &key)
 			if err == nil {
 				s.HouseKey = key
 				s.HousePubkey = key.PublicKey()
